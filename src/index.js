@@ -40,6 +40,11 @@ client.once('ready', async () => {
             .setName('restartServer')
             .setDescription('Restart the Project Zomboid server')
             .setContexts(InteractionContextType.Guild)
+            .toJSON(),
+        new SlashCommandBuilder()
+            .setName('help')
+            .setDescription('Bark! Bark! Bark!')
+            .setContexts(InteractionContextType.Guild)
             .toJSON()
     ];
 
@@ -120,6 +125,12 @@ client.on('interactionCreate', async interaction => {
             console.error('Error processing restartServer command:', error);
             await interaction.editReply('Error processing restartServer command.\nPlease bother an admin.');
         }
+    }
+
+    // New help command handler
+    if (interaction.commandName === 'help') {
+        const helpMessage = `I am Spiffio! If the server needs an update or a restart, just use my restartServer slash command to restart the server!`;
+        await interaction.reply({ content: helpMessage, ephemeral: true });
     }
 });
 
