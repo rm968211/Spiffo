@@ -10,13 +10,13 @@ const client = new Client({
 
 let config = {
     restartAccessRoleId: process.env.RESTART_ACCESS_ROLE_ID || 'disabled',
-    endpointUrl: process.env.ENDPOINT_URL || null
+    webhookUrl: process.env.WEBHOOK_URL || null
 };
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Restart access role ID: ${config.restartAccessRoleId}`);
-    console.log(`Endpoint url: ${config.endpointUrl}`);
+    console.log(`Endpoint url: ${config.webhookUrl}`);
 
     const commands = [
         new SlashCommandBuilder()
@@ -82,7 +82,7 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'getConfig') {
         console.log('Retrieving current configuration.');
         await interaction.reply({
-            content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook Endpoint: ${config.endpointUrl || 'Not Set'}`,
+            content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook URL: ${config.webhookUrl || 'Not Set'}`,
             flags: MessageFlags.Ephemeral
         });
     }
@@ -99,7 +99,7 @@ client.on('interactionCreate', async interaction => {
         
         await interaction.deferReply();
         try {
-            const response = await fetch(config.endpointUrl, {
+            const response = await fetch(config.webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
