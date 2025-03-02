@@ -24,7 +24,7 @@ client.once('ready', async () => {
 
     const commands = [
         new SlashCommandBuilder()
-            .setName('setRole')
+            .setName('setrole')
             .setDescription('Configure the restart access role ID')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
@@ -35,18 +35,18 @@ client.once('ready', async () => {
             )
             .toJSON(),
         new SlashCommandBuilder()
-            .setName('getConfig')
+            .setName('getconfig')
             .setDescription('Retrieve the current role ID, rate limit, and endpoint settings')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
         new SlashCommandBuilder()
-            .setName('restartServer')
+            .setName('restartserver')
             .setDescription('Restart the Project Zomboid server')
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
         new SlashCommandBuilder()
-            .setName('setRateLimit')
+            .setName('setratelimit')
             .setDescription('Configure the rate limit for restarting the server (in minutes)')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
@@ -92,14 +92,14 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     console.log(`Slash command received: ${interaction.commandName}`);
 
-    if (interaction.commandName === 'setRole') {
+    if (interaction.commandName === 'setrole') {
         const role = interaction.options.getString('role');
         config.restartAccessRoleId = role;
         console.log(`Updated restart access role ID to: ${role}`);
         await interaction.reply({ content: `Restart access role ID updated to: ${config.restartAccessRoleId}`, flags: MessageFlags.Ephemeral });
     }
 
-    if (interaction.commandName === 'getConfig') {
+    if (interaction.commandName === 'getconfig') {
         console.log('Retrieving current configuration.');
         await interaction.reply({
             content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook URL: ${config.webhookUrl || 'Not Set'}\nRate Limit (minutes): ${rateLimitMinutes}`,
@@ -107,14 +107,14 @@ client.on('interactionCreate', async interaction => {
         });
     }
 
-    if (interaction.commandName === 'setRateLimit') {
+    if (interaction.commandName === 'setratelimit') {
         const minutes = interaction.options.getNumber('minutes');
         rateLimitMinutes = minutes;
         console.log(`Updated rate limit to: ${rateLimitMinutes} minutes`);
         await interaction.reply({ content: `Rate limit updated to: ${rateLimitMinutes} minutes`, flags: MessageFlags.Ephemeral });
     }
 
-    if (interaction.commandName === 'restartServer') {
+    if (interaction.commandName === 'restartserver') {
         console.log(`Server restart initiated by ${interaction.user.tag}`);
         
         if (config.restartAccessRoleId !== 'disabled') {
@@ -155,14 +155,14 @@ client.on('interactionCreate', async interaction => {
     
             await interaction.editReply(replyMessage);
         } catch (error) {
-            console.error('Error processing restartServer command:', error);
-            await interaction.editReply('Error processing restartServer command.\nPlease bother an admin.');
+            console.error('Error processing restartserver command:', error);
+            await interaction.editReply('Error processing restartserver command.\nPlease bother an admin.');
         }
     }
 
     // New help command handler
     if (interaction.commandName === 'help') {
-        const helpMessage = `I am Spiffio! If the server needs an update or a restart, just use my restartServer slash command to restart the server!`;
+        const helpMessage = `I am Spiffio! If the server needs an update or a restart, just use my restartserver slash command to restart the server!`;
         await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
     }
 });
