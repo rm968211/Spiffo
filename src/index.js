@@ -8,9 +8,8 @@ const client = new Client({
     ]
 });
 
-// Global variables for rate limiting
 let lastRestartTime = 0;
-const RATE_LIMIT_MINUTES = Number(process.env.RESTART_SERVER_RATE_LIMIT) || 10;
+let rateLimitMinutes = Number(process.env.RATE_LIMIT) || 10;
 
 let config = {
     restartAccessRoleId: process.env.RESTART_ACCESS_ROLE_ID || 'disabled',
@@ -21,6 +20,7 @@ client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Restart access role ID: ${config.restartAccessRoleId}`);
     console.log(`Endpoint url: ${config.webhookUrl}`);
+    console.log(`Rate limit minutes: ${rateLimitMinutes}`);
 
     const commands = [
         new SlashCommandBuilder()
@@ -36,7 +36,7 @@ client.once('ready', async () => {
             .toJSON(),
         new SlashCommandBuilder()
             .setName('getConfig')
-            .setDescription('Retrieve the current role ID and endpoint settings')
+            .setDescription('Retrieve the current role ID, rate limit, and endpoint settings')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
@@ -44,6 +44,17 @@ client.once('ready', async () => {
             .setName('restartServer')
             .setDescription('Restart the Project Zomboid server')
             .setContexts(InteractionContextType.Guild)
+            .toJSON(),
+        new SlashCommandBuilder()
+            .setName('setRateLimit')
+            .setDescription('Configure the rate limit for restarting the server (in minutes)')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addNumberOption(option =>
+                option.setName('minutes')
+                    .setDescription('Rate limit in minutes')
+                    .setRequired(true)
+            )
             .toJSON(),
         new SlashCommandBuilder()
             .setName('help')
@@ -91,9 +102,16 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'getConfig') {
         console.log('Retrieving current configuration.');
         await interaction.reply({
-            content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook URL: ${config.webhookUrl || 'Not Set'}`,
+            content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook URL: ${config.webhookUrl || 'Not Set'}\nRate Limit (minutes): ${rateLimitMinutes}`,
             flags: MessageFlags.Ephemeral
         });
+    }
+
+    if (interaction.commandName === 'setRateLimit') {
+        const minutes = interaction.options.getNumber('minutes');
+        rateLimitMinutes = minutes;
+        console.log(`Updated rate limit to: ${rateLimitMinutes} minutes`);
+        await interaction.reply({ content: `Rate limit updated to: ${rateLimitMinutes} minutes`, flags: MessageFlags.Ephemeral });
     }
 
     if (interaction.commandName === 'restartServer') {
@@ -102,12 +120,11 @@ client.on('interactionCreate', async interaction => {
         if (config.restartAccessRoleId !== 'disabled') {
             if (!interaction.member.roles.cache.has(config.restartAccessRoleId)) {
                 console.log(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId}`);
-                return interaction.reply({ content: 'You do not have the required permissions to restart the server!'});
+                return interaction.reply({ content: 'You do not have the required permissions to restart the server!' });
             }
         }
         
-        // Rate limiting check
-        const RATE_LIMIT_MS = RATE_LIMIT_MINUTES * 60 * 1000;
+        const RATE_LIMIT_MS = rateLimitMinutes * 60 * 1000;
         const currentTime = Date.now();
         if (currentTime - lastRestartTime < RATE_LIMIT_MS) {
             const remainingTime = RATE_LIMIT_MS - (currentTime - lastRestartTime);
@@ -116,7 +133,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({content: `The server has already been restarted. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`});
         }
         
-        // Update the last restart time
         lastRestartTime = currentTime;
 
         await interaction.deferReply();
