@@ -1,16 +1,13 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, InteractionContextType, PermissionsBitField, Partials, SlashCommandBuilder, REST, Routes, MessageFlags } = require('discord.js');
+const { Client, GatewayIntentBits, InteractionContextType, PermissionsBitField, SlashCommandBuilder, REST, Routes, MessageFlags } = require('discord.js');
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers, // Needed to watch role update events.
-        GatewayIntentBits.DirectMessages
-    ],
-    partials: [Partials.Channel] // Necessary for receiving DMs.
+        GatewayIntentBits.GuildMembers,
+    ]
 });
 
-// Global configuration that will be updated via slash commands or environment variables.
 let config = {
     restartAccessRoleId: process.env.RESTART_ACCESS_ROLE_ID || 'disabled',
     endpointUrl: process.env.ENDPOINT_URL || null
@@ -21,7 +18,6 @@ client.once('ready', async () => {
     console.log(`Restart access role ID: ${config.restartAccessRoleId}`);
     console.log(`Endpoint url: ${config.endpointUrl}`);
 
-    // Register slash commands
     const commands = [
         new SlashCommandBuilder()
             .setName('setRole')
@@ -72,7 +68,6 @@ client.once('ready', async () => {
     });
 });
 
-// Handle slash command interactions.
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
     console.log(`Slash command received: ${interaction.commandName}`);
@@ -95,16 +90,13 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === 'restartServer') {
         console.log(`Server restart initiated by ${interaction.user.tag}`);
         
-        // Check if role restriction applies.
         if (config.restartAccessRoleId !== 'disabled') {
-            // Check if the invoking member has the required role.
             if (!interaction.member.roles.cache.has(config.restartAccessRoleId)) {
                 console.log(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId}`);
                 return interaction.reply({ content: 'You do not have the required permissions to restart the server!', ephemeral: true });
             }
         }
         
-        // Defer the reply to allow time for processing. This reply will be public.
         await interaction.deferReply();
         try {
             const response = await fetch(config.endpointUrl, {
