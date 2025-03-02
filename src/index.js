@@ -122,7 +122,7 @@ client.on('interactionCreate', async interaction => {
             if (config.restartAccessRoleId !== 'disabled') {
                 if (!interaction.member.roles.cache.has(config.restartAccessRoleId)) {
                     console.log(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId}`);
-                    return interaction.reply({ content: 'You do not have the required permissions to restart the server!' });
+                    return interaction.reply({ content: 'You do not have the required permissions to restart the server!', flags: MessageFlags.Ephemeral });
                 }
             }
 
@@ -133,7 +133,7 @@ client.on('interactionCreate', async interaction => {
                 const remainingTime = RATE_LIMIT_MS - (currentTime - lastRestartTime);
                 const minutesRemaining = Math.floor(remainingTime / 60000);
                 const secondsRemaining = Math.floor((remainingTime % 60000) / 1000);
-                return interaction.reply({ content: `The server has already been restarted. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!` });
+                return interaction.reply({ content: `The server has already been restarted. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
             }
 
             // Send confirmation message with buttons
