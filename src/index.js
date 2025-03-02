@@ -60,6 +60,17 @@ client.once('ready', async () => {
             .setName('help')
             .setDescription('Bark! Bark! Bark!')
             .setContexts(InteractionContextType.Guild)
+            .toJSON(),
+        new SlashCommandBuilder()
+            .setName('setwebhook')
+            .setDescription('Configure the webhook URL')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addStringOption(option =>
+                option.setName('url')
+                    .setDescription('The new webhook URL')
+                    .setRequired(true)
+            )
             .toJSON()
     ];
 
@@ -115,6 +126,13 @@ client.on('interactionCreate', async interaction => {
             await interaction.reply({ content: `Rate limit updated to: ${rateLimitMinutes} minutes`, flags: MessageFlags.Ephemeral });
         }
 
+        if (interaction.commandName === 'setwebhook') {
+            const url = interaction.options.getString('url');
+            config.webhookUrl = url;
+            console.log(`Updated webhook URL to: ${url}`);
+            await interaction.reply({ content: `Webhook URL updated to: ${config.webhookUrl}`, flags: MessageFlags.Ephemeral });
+        }
+
         if (interaction.commandName === 'restartserver') {
             console.log(`Server restart initiated by ${interaction.user.tag}`);
 
@@ -133,6 +151,7 @@ client.on('interactionCreate', async interaction => {
                 const remainingTime = RATE_LIMIT_MS - (currentTime - lastRestartTime);
                 const minutesRemaining = Math.floor(remainingTime / 60000);
                 const secondsRemaining = Math.floor((remainingTime % 60000) / 1000);
+                console.log(`The server has already been restarted. Deferring for ${minutesRemaining} minutes and ${secondsRemaining} seconds.`);
                 return interaction.reply({ content: `The server has already been restarted. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
             }
 
@@ -150,11 +169,11 @@ client.on('interactionCreate', async interaction => {
                 );
 
             // Save the original user id in the reply context (via the interaction's message)
-            await interaction.reply({ content: 'Are you sure you want to restart the server?', components: [row], ephemeral: true });
+            await interaction.reply({ content: 'Are you sure you want to restart the server?', components: [row], flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'help') {
-            const helpMessage = `I am Spiffio! If the server needs an update or a restart, just use my restartserver slash command to restart the server!`;
+            const helpMessage = `I am Spiffio! If the server needs an update or a restart, just use my restartserver command to restart the server!`;
             await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
         }
     }
@@ -187,10 +206,10 @@ client.on('interactionCreate', async interaction => {
                     replyMessage = `❌ Server restart failed.\nPlease bother an admin.`;
                 }
 
-                await interaction.followUp({ content: replyMessage});
+                await interaction.followUp({ content: replyMessage });
             } catch (error) {
                 console.error('Error processing restartserver command:', error);
-                await interaction.followUp({ content: 'Error processing restartserver command.\nPlease bother an admin.'});
+                await interaction.followUp({ content: 'Error processing restartserver command.\nPlease bother an admin.' });
             }
         } else if (interaction.customId === 'cancel_restart') {
             await interaction.update({ content: 'Server restart cancelled.', components: [], flags: MessageFlags.Ephemeral });
