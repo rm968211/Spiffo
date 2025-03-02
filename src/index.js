@@ -1,5 +1,17 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, InteractionContextType, PermissionsBitField, SlashCommandBuilder, REST, Routes, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const {
+    Client,
+    GatewayIntentBits,
+    InteractionContextType,
+    PermissionsBitField,
+    SlashCommandBuilder,
+    REST,
+    Routes,
+    MessageFlags,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
+} = require('discord.js');
 
 const client = new Client({
     intents: [
@@ -7,6 +19,8 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
     ]
 });
+
+let restartFeatureEnabled = true;
 
 let lastRestartTime = 0;
 let rateLimitMinutes = Number(process.env.RATE_LIMIT) || 10;
@@ -71,6 +85,17 @@ client.once('ready', async () => {
                     .setDescription('The new webhook URL')
                     .setRequired(true)
             )
+            .toJSON(),
+        new SlashCommandBuilder()
+            .setName('setrestartfeature')
+            .setDescription('Enable or disable the restart server command')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addBooleanOption(option =>
+                option.setName('enabled')
+                    .setDescription('Set to true to enable or false to disable the restart server command')
+                    .setRequired(true)
+            )
             .toJSON()
     ];
 
@@ -114,7 +139,7 @@ client.on('interactionCreate', async interaction => {
         if (interaction.commandName === 'getconfig') {
             console.log('Retrieving current configuration.');
             await interaction.reply({
-                content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook URL: ${config.webhookUrl || 'Not Set'}\nRate Limit (minutes): ${rateLimitMinutes}`,
+                content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook URL: ${config.webhookUrl || 'Not Set'}\nRate Limit (minutes): ${rateLimitMinutes}\nRestart Feature Enabled: ${restartFeatureEnabled}`,
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -133,7 +158,20 @@ client.on('interactionCreate', async interaction => {
             await interaction.reply({ content: `Webhook URL updated to: ${config.webhookUrl}`, flags: MessageFlags.Ephemeral });
         }
 
+        // New toggle command to enable/disable the restart server feature
+        if (interaction.commandName === 'setrestartfeature') {
+            const enabled = interaction.options.getBoolean('enabled');
+            restartFeatureEnabled = enabled;
+            console.log(`Restart server feature ${enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
+            await interaction.reply({ content: `Restart server feature has been ${enabled ? 'enabled' : 'disabled'}.`, flags: MessageFlags.Ephemeral });
+        }
+
         if (interaction.commandName === 'restartserver') {
+            // Check if the restart feature is enabled
+            if (!restartFeatureEnabled) {
+                return interaction.reply({ content: 'The restart server command is currently disabled by an administrator.', flags: MessageFlags.Ephemeral });
+            }
+
             console.log(`Server restart initiated by ${interaction.user.tag}`);
 
             // Check for role permission
@@ -168,7 +206,6 @@ client.on('interactionCreate', async interaction => {
                         .setStyle(ButtonStyle.Secondary)
                 );
 
-            // Save the original user id in the reply context (via the interaction's message)
             await interaction.reply({ content: 'Are you sure you want to restart the server?', components: [row], flags: MessageFlags.Ephemeral });
         }
 
