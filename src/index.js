@@ -8,6 +8,10 @@ const client = new Client({
     ]
 });
 
+// Global variables for rate limiting
+let lastRestartTime = 0;
+const RATE_LIMIT_MINUTES = Number(process.env.RESTART_SERVER_RATE_LIMIT) || 10;
+
 let config = {
     restartAccessRoleId: process.env.RESTART_ACCESS_ROLE_ID || 'disabled',
     webhookUrl: process.env.WEBHOOK_URL || null
@@ -98,10 +102,23 @@ client.on('interactionCreate', async interaction => {
         if (config.restartAccessRoleId !== 'disabled') {
             if (!interaction.member.roles.cache.has(config.restartAccessRoleId)) {
                 console.log(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId}`);
-                return interaction.reply({ content: 'You do not have the required permissions to restart the server!', ephemeral: true });
+                return interaction.reply({ content: 'You do not have the required permissions to restart the server!'});
             }
         }
         
+        // Rate limiting check
+        const RATE_LIMIT_MS = RATE_LIMIT_MINUTES * 60 * 1000;
+        const currentTime = Date.now();
+        if (currentTime - lastRestartTime < RATE_LIMIT_MS) {
+            const remainingTime = RATE_LIMIT_MS - (currentTime - lastRestartTime);
+            const minutesRemaining = Math.floor(remainingTime / 60000);
+            const secondsRemaining = Math.floor((remainingTime % 60000) / 1000);
+            return interaction.reply({content: `The server has already been restarted. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`});
+        }
+        
+        // Update the last restart time
+        lastRestartTime = currentTime;
+
         await interaction.deferReply();
         try {
             const response = await fetch(config.webhookUrl, {
@@ -130,7 +147,7 @@ client.on('interactionCreate', async interaction => {
     // New help command handler
     if (interaction.commandName === 'help') {
         const helpMessage = `I am Spiffio! If the server needs an update or a restart, just use my restartServer slash command to restart the server!`;
-        await interaction.reply({ content: helpMessage, ephemeral: true });
+        await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
     }
 });
 
