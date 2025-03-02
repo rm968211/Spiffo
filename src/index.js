@@ -79,9 +79,9 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === 'setRole') {
         const role = interaction.options.getString('role');
-        config.targetRoleId = role;
+        config.restartAccessRoleId = role;
         console.log(`Updated restart access role ID to: ${role}`);
-        await interaction.reply({ content: `restart access role ID updated to: ${config.targetRoleId}`, flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: `Restart access role ID updated to: ${config.restartAccessRoleId}`, flags: MessageFlags.Ephemeral });
     }
 
     if (interaction.commandName === 'getConfig') {
@@ -94,10 +94,20 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === 'restartServer') {
         console.log(`Server restart initiated by ${interaction.user.tag}`);
+        
+        // Check if role restriction applies.
+        if (config.restartAccessRoleId !== 'disabled') {
+            // Check if the invoking member has the required role.
+            if (!interaction.member.roles.cache.has(config.restartAccessRoleId)) {
+                console.log(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId}`);
+                return interaction.reply({ content: 'You do not have the required permissions to restart the server!', ephemeral: true });
+            }
+        }
+        
         // Defer the reply to allow time for processing. This reply will be public.
         await interaction.deferReply();
         try {
-            const response = await fetch(ENDPOINT_URL, {
+            const response = await fetch(config.endpointUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
