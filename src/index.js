@@ -178,7 +178,6 @@ client.on('interactionCreate', async interaction => {
                     body: JSON.stringify({})
                 });
 
-                const result = await response.json();
                 let replyMessage;
                 if (response.ok) {
                     console.log(`Server restarted successfully`);
@@ -188,7 +187,6 @@ client.on('interactionCreate', async interaction => {
                     replyMessage = `❌ Server restart failed.\nPlease bother an admin.`;
                 }
 
-                // Send a follow-up message with the final result.
                 await interaction.followUp({ content: replyMessage});
             } catch (error) {
                 console.error('Error processing restartserver command:', error);
