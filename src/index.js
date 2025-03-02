@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 const {
     Client,
@@ -13,6 +15,38 @@ const {
     ButtonStyle
 } = require('discord.js');
 
+const configPath = path.join(__dirname, 'config.json');
+
+let config = {
+    restartFeatureEnabled: true,
+    rateLimit: 12, // in minutes
+    restartAccessRoleId: 'disabled',
+    webhookUrl: null
+};
+
+// Function to persist the config object to the file
+function saveConfig() {
+    try {
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
+    } catch (error) {
+        console.error('Error saving config file:', error);
+    }
+}
+
+// Load the configuration file if it exists; otherwise, create it.
+if (fs.existsSync(configPath)) {
+    try {
+        const fileData = fs.readFileSync(configPath);
+        const fileConfig = JSON.parse(fileData);
+        // Merge defaults with file values (file values take precedence)
+        config = { ...config, ...fileConfig };
+    } catch (error) {
+        console.error('Error reading config file, using defaults.', error);
+    }
+} else {
+    saveConfig();
+}
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -20,21 +54,12 @@ const client = new Client({
     ]
 });
 
-let restartFeatureEnabled = true;
-
-let lastRestartTime = 0;
-let rateLimitMinutes = Number(process.env.RATE_LIMIT) || 10;
-
-let config = {
-    restartAccessRoleId: process.env.RESTART_ACCESS_ROLE_ID || 'disabled',
-    webhookUrl: process.env.WEBHOOK_URL || null
-};
-
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Restart access role ID: ${config.restartAccessRoleId}`);
-    console.log(`Endpoint url: ${config.webhookUrl}`);
-    console.log(`Rate limit minutes: ${rateLimitMinutes}`);
+    console.log(`Endpoint URL: ${config.webhookUrl}`);
+    console.log(`Rate limit (minutes): ${config.rateLimit}`);
+    console.log(`Restart feature enabled: ${config.restartFeatureEnabled}`);
 
     const commands = [
         new SlashCommandBuilder()
@@ -50,7 +75,7 @@ client.once('ready', async () => {
             .toJSON(),
         new SlashCommandBuilder()
             .setName('getconfig')
-            .setDescription('Retrieve the current role ID, rate limit, and endpoint settings')
+            .setDescription('Retrieve the current configuration settings')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
@@ -124,14 +149,16 @@ client.once('ready', async () => {
     });
 });
 
+let lastRestartTime = 0;
+
 client.on('interactionCreate', async interaction => {
-    // Handle slash commands
     if (interaction.isChatInputCommand()) {
         console.log(`Slash command received: ${interaction.commandName}`);
 
         if (interaction.commandName === 'setrole') {
             const role = interaction.options.getString('role');
             config.restartAccessRoleId = role;
+            saveConfig();
             console.log(`Updated restart access role ID to: ${role}`);
             await interaction.reply({ content: `Restart access role ID updated to: ${config.restartAccessRoleId}`, flags: MessageFlags.Ephemeral });
         }
@@ -139,57 +166,63 @@ client.on('interactionCreate', async interaction => {
         if (interaction.commandName === 'getconfig') {
             console.log('Retrieving current configuration.');
             await interaction.reply({
-                content: `Current Configuration:\nRole ID: ${config.restartAccessRoleId}\nWebhook URL: ${config.webhookUrl || 'Not Set'}\nRate Limit (minutes): ${rateLimitMinutes}\nRestart Feature Enabled: ${restartFeatureEnabled}`,
+                content: `Current Configuration:
+Role ID: ${config.restartAccessRoleId}
+Webhook URL: ${config.webhookUrl || 'Not Set'}
+Rate Limit (minutes): ${config.rateLimit}
+Restart Feature Enabled: ${config.restartFeatureEnabled}`,
                 flags: MessageFlags.Ephemeral
             });
         }
 
         if (interaction.commandName === 'setratelimit') {
             const minutes = interaction.options.getNumber('minutes');
-            rateLimitMinutes = minutes;
-            console.log(`Updated rate limit to: ${rateLimitMinutes} minutes`);
-            await interaction.reply({ content: `Rate limit updated to: ${rateLimitMinutes} minutes`, flags: MessageFlags.Ephemeral });
+            config.rateLimit = minutes;
+            saveConfig();
+            console.log(`Updated rate limit to: ${config.rateLimit} minutes`);
+            await interaction.reply({ content: `Rate limit updated to: ${config.rateLimit} minutes`, flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'setwebhook') {
             const url = interaction.options.getString('url');
             config.webhookUrl = url;
+            saveConfig();
             console.log(`Updated webhook URL to: ${url}`);
             await interaction.reply({ content: `Webhook URL updated to: ${config.webhookUrl}`, flags: MessageFlags.Ephemeral });
         }
 
-        // New toggle command to enable/disable the restart server feature
         if (interaction.commandName === 'setrestartfeature') {
             const enabled = interaction.options.getBoolean('enabled');
-            restartFeatureEnabled = enabled;
+            config.restartFeatureEnabled = enabled;
+            saveConfig();
             console.log(`Restart server feature ${enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
             await interaction.reply({ content: `Restart server feature has been ${enabled ? 'enabled' : 'disabled'}.`, flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'restartserver') {
-            // Check if the restart feature is enabled
-            if (!restartFeatureEnabled) {
+            if (!config.restartFeatureEnabled) {
+                console.warn(`Server restart attempted by ${interaction.user.tag}. Restart is currently disabled so no action was taken.`);
                 return interaction.reply({ content: 'The restart server command is currently disabled by an administrator.', flags: MessageFlags.Ephemeral });
             }
 
             console.log(`Server restart initiated by ${interaction.user.tag}`);
 
-            // Check for role permission
+            // Check for role permission if a role is set
             if (config.restartAccessRoleId !== 'disabled') {
                 if (!interaction.member.roles.cache.has(config.restartAccessRoleId)) {
-                    console.log(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId}`);
+                    console.warn(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId} to restart the server.`);
                     return interaction.reply({ content: 'You do not have the required permissions to restart the server!', flags: MessageFlags.Ephemeral });
                 }
             }
 
-            // Check rate limit
-            const RATE_LIMIT_MS = rateLimitMinutes * 60 * 1000;
+            // Check rate limit based on the config setting
+            const RATE_LIMIT_MS = config.rateLimit * 60 * 1000;
             const currentTime = Date.now();
             if (currentTime - lastRestartTime < RATE_LIMIT_MS) {
                 const remainingTime = RATE_LIMIT_MS - (currentTime - lastRestartTime);
                 const minutesRemaining = Math.floor(remainingTime / 60000);
                 const secondsRemaining = Math.floor((remainingTime % 60000) / 1000);
-                console.log(`The server has already been restarted. Deferring for ${minutesRemaining} minutes and ${secondsRemaining} seconds.`);
+                console.warn(`The server has already been restarted. Deferring for ${minutesRemaining} minutes and ${secondsRemaining} seconds.`);
                 return interaction.reply({ content: `The server has already been restarted recently. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
             }
 
@@ -210,7 +243,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.commandName === 'help') {
-            const helpMessage = `I am Spiffio! If the server needs an update or a restart, just use my restartserver command to restart the server!`;
+            const helpMessage = "I am Spiffio! If the server needs an update or a restart, just use my restartserver command to restart the server!";
             await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
         }
     }
@@ -236,11 +269,11 @@ client.on('interactionCreate', async interaction => {
 
                 let replyMessage;
                 if (response.ok) {
-                    console.log(`Server restarted successfully`);
-                    replyMessage = `✅ Server restarted successfully!\nPlease wait for the server to come back online.\nThis can take up to 5-10 minutes.`;
+                    console.log('Server restarted successfully');
+                    replyMessage = "✅ Server restarted successfully!\nPlease wait for the server to come back online.\nThis can take up to 5-10 minutes.";
                 } else {
                     console.error(`Server restart failed with response status ${response.status}`);
-                    replyMessage = `❌ Server restart failed.\nPlease bother an admin.`;
+                    replyMessage = "❌ Server restart failed.\nPlease bother an admin.";
                 }
 
                 await interaction.followUp({ content: replyMessage });
@@ -249,7 +282,7 @@ client.on('interactionCreate', async interaction => {
                 await interaction.followUp({ content: 'Error processing restartserver command.\nPlease bother an admin.' });
             }
         } else if (interaction.customId === 'cancel_restart') {
-            await interaction.update({ content: 'Server restart cancelled.', components: [], flags: MessageFlags.Ephemeral });
+            await interaction.update({ content: 'Server restart cancelled.', components: [] });
         }
     }
 });
