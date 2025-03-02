@@ -262,9 +262,9 @@ Restart Feature Enabled: ${config.restartFeatureEnabled}`,
         }
 
         if (interaction.customId === 'confirm_restart') {
-            // Update the last restart time and indicate that the restart is in progress.
             lastRestartTime = Date.now();
             await interaction.update({ content: 'Restarting server...', components: [] });
+            
             try {
                 const response = await fetch(config.webhookUrl, {
                     method: 'POST',
@@ -272,19 +272,28 @@ Restart Feature Enabled: ${config.restartFeatureEnabled}`,
                     body: JSON.stringify({})
                 });
 
-                let replyMessage;
                 if (response.ok) {
                     console.log('Server restarted successfully');
-                    replyMessage = "✅ Server restarted successfully!\nPlease wait for the server to come back online.\nThis can take up to 5-10 minutes.";
+                    await interaction.channel.send(
+                        `✅ Server restarted successfully by <@${interaction.user.id}>!\n` +
+                        `Please wait for the server to come back online.\n` +
+                        `This can take up to 5-10 minutes.`
+                    );
                 } else {
                     console.error(`Server restart failed with response status ${response.status}`);
-                    replyMessage = "❌ Server restart failed.\nPlease bother an admin.";
+                    await interaction.channel.send(
+                        `❌ Server restart failed.\n` +
+                        `I will bother an admin for you.\n` +
+                        `@Kim Il Sung <@${interaction.user.id}>'s attempt to restart the server failed. Please investigate.`
+                    );
                 }
-
-                await interaction.followUp({ content: replyMessage });
             } catch (error) {
                 console.error('Error processing restartserver command:', error);
-                await interaction.followUp({ content: 'Error processing restartserver command.\nPlease bother an admin.' });
+                await interaction.channel.send(
+                    `❌ Server restart failed.\n` +
+                    `I will bother an admin for you.\n` +
+                    `@Kim Il Sung <@${interaction.user.id}>'s attempt to restart the server failed. Please investigate.`
+                );
             }
         } else if (interaction.customId === 'cancel_restart') {
             await interaction.update({ content: 'Server restart cancelled.', components: [] });
