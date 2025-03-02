@@ -1,9 +1,5 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, InteractionContextType, PermissionsBitField, Partials, SlashCommandBuilder, REST, Routes, MessageFlags } = require('discord.js');
-const path = require('path');
-// If you’re using Node.js v18 or higher, the global fetch is available.
-// For earlier versions, you may need to install and require 'node-fetch':
-// const fetch = require('node-fetch');
 
 const client = new Client({
     intents: [
