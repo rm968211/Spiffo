@@ -152,7 +152,7 @@ client.on('interactionCreate', async interaction => {
                 const minutesRemaining = Math.floor(remainingTime / 60000);
                 const secondsRemaining = Math.floor((remainingTime % 60000) / 1000);
                 console.log(`The server has already been restarted. Deferring for ${minutesRemaining} minutes and ${secondsRemaining} seconds.`);
-                return interaction.reply({ content: `The server has already been restarted. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
+                return interaction.reply({ content: `The server has already been restarted recently. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
             }
 
             // Send confirmation message with buttons
