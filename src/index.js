@@ -15,7 +15,7 @@ const {
     ButtonStyle
 } = require('discord.js');
 
-const configPath = path.join(__dirname, 'config.json');
+const configPath = process.env.CONFIG_PATH || path.join('/data', 'config.json');
 
 let config = {
     restartFeatureEnabled: true,
@@ -27,6 +27,11 @@ let config = {
 // Function to persist the config object to the file
 function saveConfig() {
     try {
+        // Ensure the directory exists before saving the file
+        const dir = path.dirname(configPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
         fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
     } catch (error) {
         console.error('Error saving config file:', error);
