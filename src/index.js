@@ -106,7 +106,7 @@ client.once('ready', async () => {
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
         new SlashCommandBuilder()
-            .setName('setwebhook')
+            .setName('setwebhookurl')
             .setDescription('Configure the webhook URL')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
@@ -116,6 +116,17 @@ client.once('ready', async () => {
                     .setRequired(true)
             )
             .toJSON(),
+            new SlashCommandBuilder()
+                .setName('setwebhooktoken')
+                .setDescription('Configure the webhook token')
+                .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+                .setContexts(InteractionContextType.Guild)
+                .addStringOption(option =>
+                    option.setName('token')
+                        .setDescription('The new webhook token')
+                        .setRequired(true)
+                )
+                .toJSON(),
         new SlashCommandBuilder()
             .setName('setrestartfeature')
             .setDescription('Enable or disable the restart server command')
@@ -188,11 +199,19 @@ Restart Feature Enabled: ${config.restartFeatureEnabled}`,
             await interaction.reply({ content: `Rate limit updated to: ${config.rateLimit} minutes`, flags: MessageFlags.Ephemeral });
         }
 
-        if (interaction.commandName === 'setwebhook') {
+        if (interaction.commandName === 'setwebhookurl') {
             const url = interaction.options.getString('url');
             config.webhookUrl = url;
             saveConfig();
             console.log(`Updated webhook URL to: ${url}`);
+            await interaction.reply({ content: `Webhook URL updated to: ${config.webhookUrl}`, flags: MessageFlags.Ephemeral });
+        }
+
+        if (interaction.commandName === 'setwebhooktoken') {
+            const token = interaction.options.getString('token');
+            config.webhookUrl = `http://portainer:9000/api/webhooks/${token}`;
+            saveConfig();
+            console.log(`Updated webhook token to: ${token}`);
             await interaction.reply({ content: `Webhook URL updated to: ${config.webhookUrl}`, flags: MessageFlags.Ephemeral });
         }
 
