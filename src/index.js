@@ -68,8 +68,7 @@ const client = new Client({
  */
 async function pollServer(userId, channel) {
     const initialDelay = 180000; // 3 minutes in milliseconds
-    const maxAttempts = 60; // try for up to 5 minutes (60 attempts * 5 seconds)
-    let attempts = 0;
+    const maxDuration = 300000; // 5 minutes in milliseconds
     const pollInterval = 5000; // 5 seconds
     const expectedSubstring = "List of server commands";
     const rconOptions = {
@@ -79,8 +78,14 @@ async function pollServer(userId, channel) {
         timeout: 5000, // timeout in milliseconds
     };
 
+    const startTime = Date.now();
+
     async function poll() {
-        attempts++;
+        const elapsed = Date.now() - startTime;
+        if (elapsed >= maxDuration) {
+            channel.send(`⚠️ Server did not respond within the expected time frame, <@${userId}>. Please check manually.`);
+            return;
+        }
         const rcon = new RconClient(rconOptions);
         try {
             await rcon.connect();
@@ -91,13 +96,9 @@ async function pollServer(userId, channel) {
                 return;
             }
         } catch (error) {
-            console.log(`Polling attempt ${attempts} failed: ${error}`);
+            console.log(`Polling failed after ${Math.floor(elapsed / 1000)} seconds: ${error}`);
         }
-        if (attempts < maxAttempts) {
-            setTimeout(poll, pollInterval);
-        } else {
-            channel.send(`⚠️ Server did not respond after multiple attempts, <@${userId}>. Please check manually.`);
-        }
+        setTimeout(poll, pollInterval);
     }
     setTimeout(poll, initialDelay);
 }
