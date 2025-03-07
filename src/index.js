@@ -24,7 +24,10 @@ let config = {
     restartFeatureEnabled: true,
     rateLimit: 12, // in minutes
     restartAccessRoleId: 'disabled',
-    webhookUrl: null
+    webhookUrl: null,
+    initialDelay: 180000, // 3 minutes in milliseconds
+    maxDuration: 300000,  // 5 minutes in milliseconds
+    pollInterval: 5000    // 5 seconds in milliseconds
 };
 
 // Function to persist the config object to the file
@@ -67,9 +70,10 @@ const client = new Client({
  * Uses @0x0c/rcon.
  */
 async function pollServer(userId, channel) {
-    const initialDelay = 180000; // 3 minutes in milliseconds
-    const maxDuration = 300000; // 5 minutes in milliseconds
-    const pollInterval = 5000; // 5 seconds
+    // Use configurable values from the config
+    const initialDelay = config.initialDelay;
+    const maxDuration = config.maxDuration;
+    const pollInterval = config.pollInterval;
     const expectedSubstring = "List of server commands";
     const rconOptions = {
         host: process.env.RCON_HOST || '127.0.0.1',
@@ -109,6 +113,9 @@ client.once('ready', async () => {
     console.log(`Endpoint URL: ${config.webhookUrl}`);
     console.log(`Rate limit (minutes): ${config.rateLimit}`);
     console.log(`Restart feature enabled: ${config.restartFeatureEnabled}`);
+    console.log(`Poll Initial Delay (ms): ${config.initialDelay}`);
+    console.log(`Poll Max Duration (ms): ${config.maxDuration}`);
+    console.log(`Poll Interval (ms): ${config.pollInterval}`);
 
     const commands = [
         new SlashCommandBuilder()
@@ -181,6 +188,42 @@ client.once('ready', async () => {
                     .setDescription('Set to true to enable or false to disable the restart server command')
                     .setRequired(true)
             )
+            .toJSON(),
+        // New slash command to set the initial delay (in seconds)
+        new SlashCommandBuilder()
+            .setName('setinitialdelay')
+            .setDescription('Set the initial delay for polling the server (in seconds)')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addNumberOption(option =>
+                option.setName('seconds')
+                    .setDescription('Initial delay in seconds')
+                    .setRequired(true)
+            )
+            .toJSON(),
+        // New slash command to set the maximum duration (in seconds)
+        new SlashCommandBuilder()
+            .setName('setmaxduration')
+            .setDescription('Set the maximum duration for polling the server (in seconds)')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addNumberOption(option =>
+                option.setName('seconds')
+                    .setDescription('Maximum duration in seconds')
+                    .setRequired(true)
+            )
+            .toJSON(),
+        // New slash command to set the poll interval (in seconds)
+        new SlashCommandBuilder()
+            .setName('setpollinterval')
+            .setDescription('Set the polling interval (in seconds)')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addNumberOption(option =>
+                option.setName('seconds')
+                    .setDescription('Poll interval in seconds')
+                    .setRequired(true)
+            )
             .toJSON()
     ];
 
@@ -230,7 +273,10 @@ client.on('interactionCreate', async interaction => {
 Role ID: ${config.restartAccessRoleId}
 Webhook URL: ${config.webhookUrl || 'Not Set'}
 Rate Limit (minutes): ${config.rateLimit}
-Restart Feature Enabled: ${config.restartFeatureEnabled}`,
+Restart Feature Enabled: ${config.restartFeatureEnabled}
+Poll Initial Delay (ms): ${config.initialDelay}
+Poll Max Duration (ms): ${config.maxDuration}
+Poll Interval (ms): ${config.pollInterval}`,
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -265,6 +311,30 @@ Restart Feature Enabled: ${config.restartFeatureEnabled}`,
             saveConfig();
             console.log(`Restart server feature ${enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
             await interaction.reply({ content: `Restart server feature has been ${enabled ? 'enabled' : 'disabled'}.`, flags: MessageFlags.Ephemeral });
+        }
+
+        if (interaction.commandName === 'setinitialdelay') {
+            const seconds = interaction.options.getNumber('seconds');
+            config.initialDelay = seconds * 1000;
+            saveConfig();
+            console.log(`Initial delay updated to: ${seconds} seconds`);
+            await interaction.reply({ content: `Initial delay updated to ${seconds} seconds.`, flags: MessageFlags.Ephemeral });
+        }
+
+        if (interaction.commandName === 'setmaxduration') {
+            const seconds = interaction.options.getNumber('seconds');
+            config.maxDuration = seconds * 1000;
+            saveConfig();
+            console.log(`Max duration updated to: ${seconds} seconds`);
+            await interaction.reply({ content: `Max duration updated to ${seconds} seconds.`, flags: MessageFlags.Ephemeral });
+        }
+
+        if (interaction.commandName === 'setpollinterval') {
+            const seconds = interaction.options.getNumber('seconds');
+            config.pollInterval = seconds * 1000;
+            saveConfig();
+            console.log(`Poll interval updated to: ${seconds} seconds`);
+            await interaction.reply({ content: `Poll interval updated to ${seconds} seconds.`, flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'restartserver') {
