@@ -74,7 +74,7 @@ async function pollServer(userId, channel, silent = false, interactionForFollowU
     const maxDuration = config.maxDuration;
     const pollInterval = config.pollInterval;
     const rconOptions = {
-        host: process.env.RCON_HOST || 'portainer',
+        host: process.env.RCON_HOST || 'zomboid-server',
         port: parseInt(process.env.RCON_PORT) || 27015,
         password: process.env.RCON_PASSWORD || '',
         timeout: 5000, // timeout in milliseconds
