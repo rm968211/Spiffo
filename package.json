@@ -10,6 +10,7 @@
   "author": "",
   "license": "",
   "dependencies": {
+    "@0x0c/rcon": "^1.0.0",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7"
   }
