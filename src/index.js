@@ -25,9 +25,9 @@ let config = {
     rateLimit: 12, // in minutes
     restartAccessRoleId: 'disabled',
     webhookUrl: null,
-    initialDelay: 180000, // 3 minutes in milliseconds
+    initialDelay: 60000, // 1 minute in milliseconds
     maxDuration: 720000,  // 12 minutes in milliseconds
-    pollInterval: 20000    // 20 seconds in milliseconds
+    pollInterval: 15000    // 15 seconds in milliseconds
 };
 
 // Function to persist the config object to the file
