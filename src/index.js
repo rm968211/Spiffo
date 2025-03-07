@@ -225,12 +225,12 @@ client.once('ready', async () => {
             .toJSON(),
         new SlashCommandBuilder()
             .setName('setmaxduration')
-            .setDescription('Set the maximum duration for polling the server (in seconds)')
+            .setDescription('Set the maximum duration for polling the server (in minutes)')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
             .addNumberOption(option =>
-                option.setName('seconds')
-                    .setDescription('Maximum duration in seconds')
+                option.setName('minutes')
+                    .setDescription('Maximum duration in minutes')
                     .setRequired(true)
             )
             .toJSON(),
@@ -302,9 +302,9 @@ Webhook URL: ${config.webhookUrl || 'Not Set'}
 Rate Limit (minutes): ${config.rateLimit}
 Restart Feature Enabled: ${config.restartFeatureEnabled}
 RCON Feature Enabled: ${config.rconFeatureEnabled}
-Poll Initial Delay (ms): ${config.initialDelay}
-Poll Max Duration (ms): ${config.maxDuration}
-Poll Interval (ms): ${config.pollInterval}`,
+Poll Initial Delay (seconds): ${config.initialDelay / 1000}
+Poll Max Duration (minutes): ${config.maxDuration / 60000}
+Poll Interval (seconds): ${config.pollInterval / 1000}`,
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -358,11 +358,11 @@ Poll Interval (ms): ${config.pollInterval}`,
         }
 
         if (interaction.commandName === 'setmaxduration') {
-            const seconds = interaction.options.getNumber('seconds');
-            config.maxDuration = seconds * 1000;
+            const minutes = interaction.options.getNumber('minutes');
+            config.maxDuration = minutes * 60 * 1000;
             saveConfig();
-            console.log(`Max duration updated to: ${seconds} seconds`);
-            await interaction.reply({ content: `Max duration updated to ${seconds} seconds.`, flags: MessageFlags.Ephemeral });
+            console.log(`Max duration updated to: ${minutes} minutes`);
+            await interaction.reply({ content: `Max duration updated to ${minutes} minutes.`, flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'setpollinterval') {
