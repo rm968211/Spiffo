@@ -75,7 +75,6 @@ async function pollServer(userId, channel) {
     const initialDelay = config.initialDelay;
     const maxDuration = config.maxDuration;
     const pollInterval = config.pollInterval;
-    const expectedSubstring = "List of server commands";
     const rconOptions = {
         host: process.env.RCON_HOST || 'portainer',
         port: parseInt(process.env.RCON_PORT) || 27015,
@@ -94,16 +93,15 @@ async function pollServer(userId, channel) {
         }
         const rcon = new RconClient(rconOptions);
         try {
+            // Try connecting to the server
             await rcon.connect();
-            const response = await rcon.send("help");
+            // If connected, immediately disconnect and notify success
             await rcon.disconnect();
-            if (response && response.includes(expectedSubstring)) {
-                console.log(`Server is back online after ${Math.floor(elapsed / 1000)} seconds.`);
-                channel.send(`✅ Server is back online, <@${userId}>!`);
-                return;
-            }
+            console.log(`Server is back online after ${Math.floor(elapsed / 1000)} seconds.`);
+            channel.send(`✅ Server is back online, <@${userId}>!`);
+            return;
         } catch (error) {
-            console.log(`Polling failed after ${Math.floor(elapsed / 1000)} seconds: ${error}`);
+            //do nothing
         }
         setTimeout(poll, pollInterval);
     }
