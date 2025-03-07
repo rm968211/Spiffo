@@ -22,12 +22,13 @@ const configPath = process.env.CONFIG_PATH || path.join('/data', 'config.json');
 
 let config = {
     restartFeatureEnabled: true,
+    rconFeatureEnabled: true,
     rateLimit: 12, // in minutes
     restartAccessRoleId: 'disabled',
     webhookUrl: null,
     initialDelay: 180000, // 3 minutes in milliseconds
-    maxDuration: 300000,  // 5 minutes in milliseconds
-    pollInterval: 5000    // 5 seconds in milliseconds
+    maxDuration: 720000,  // 12 minutes in milliseconds
+    pollInterval: 20000    // 20 seconds in milliseconds
 };
 
 // Function to persist the config object to the file
@@ -76,8 +77,8 @@ async function pollServer(userId, channel) {
     const pollInterval = config.pollInterval;
     const expectedSubstring = "List of server commands";
     const rconOptions = {
-        host: process.env.RCON_HOST || '127.0.0.1',
-        port: parseInt(process.env.RCON_PORT) || 25575,
+        host: process.env.RCON_HOST || 'portainer',
+        port: parseInt(process.env.RCON_PORT) || 27015,
         password: process.env.RCON_PASSWORD || '',
         timeout: 5000, // timeout in milliseconds
     };
@@ -87,6 +88,7 @@ async function pollServer(userId, channel) {
     async function poll() {
         const elapsed = Date.now() - startTime;
         if (elapsed >= maxDuration) {
+            console.log(`Polling timed out after ${Math.floor(elapsed / 1000)} seconds.`);
             channel.send(`⚠️ Server did not respond within the expected time frame, <@${userId}>. Please check manually.`);
             return;
         }
@@ -96,6 +98,7 @@ async function pollServer(userId, channel) {
             const response = await rcon.send("help");
             await rcon.disconnect();
             if (response && response.includes(expectedSubstring)) {
+                console.log(`Server is back online after ${Math.floor(elapsed / 1000)} seconds.`);
                 channel.send(`✅ Server is back online, <@${userId}>!`);
                 return;
             }
@@ -113,6 +116,7 @@ client.once('ready', async () => {
     console.log(`Endpoint URL: ${config.webhookUrl}`);
     console.log(`Rate limit (minutes): ${config.rateLimit}`);
     console.log(`Restart feature enabled: ${config.restartFeatureEnabled}`);
+    console.log(`RCON feature enabled: ${config.rconFeatureEnabled}`);
     console.log(`Poll Initial Delay (ms): ${config.initialDelay}`);
     console.log(`Poll Max Duration (ms): ${config.maxDuration}`);
     console.log(`Poll Interval (ms): ${config.pollInterval}`);
@@ -189,7 +193,17 @@ client.once('ready', async () => {
                     .setRequired(true)
             )
             .toJSON(),
-        // New slash command to set the initial delay (in seconds)
+        new SlashCommandBuilder()
+            .setName('setrconfeature')
+            .setDescription('Enable or disable the RCON polling feature')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addBooleanOption(option =>
+                option.setName('enabled')
+                    .setDescription('Set to true to enable or false to disable the RCON polling feature')
+                    .setRequired(true)
+            )
+            .toJSON(),
         new SlashCommandBuilder()
             .setName('setinitialdelay')
             .setDescription('Set the initial delay for polling the server (in seconds)')
@@ -201,7 +215,6 @@ client.once('ready', async () => {
                     .setRequired(true)
             )
             .toJSON(),
-        // New slash command to set the maximum duration (in seconds)
         new SlashCommandBuilder()
             .setName('setmaxduration')
             .setDescription('Set the maximum duration for polling the server (in seconds)')
@@ -213,7 +226,6 @@ client.once('ready', async () => {
                     .setRequired(true)
             )
             .toJSON(),
-        // New slash command to set the poll interval (in seconds)
         new SlashCommandBuilder()
             .setName('setpollinterval')
             .setDescription('Set the polling interval (in seconds)')
@@ -274,6 +286,7 @@ Role ID: ${config.restartAccessRoleId}
 Webhook URL: ${config.webhookUrl || 'Not Set'}
 Rate Limit (minutes): ${config.rateLimit}
 Restart Feature Enabled: ${config.restartFeatureEnabled}
+RCON Feature Enabled: ${config.rconFeatureEnabled}
 Poll Initial Delay (ms): ${config.initialDelay}
 Poll Max Duration (ms): ${config.maxDuration}
 Poll Interval (ms): ${config.pollInterval}`,
@@ -311,6 +324,15 @@ Poll Interval (ms): ${config.pollInterval}`,
             saveConfig();
             console.log(`Restart server feature ${enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
             await interaction.reply({ content: `Restart server feature has been ${enabled ? 'enabled' : 'disabled'}.`, flags: MessageFlags.Ephemeral });
+        }
+
+        // Handle new command for RCON feature toggle
+        if (interaction.commandName === 'setrconfeature') {
+            const enabled = interaction.options.getBoolean('enabled');
+            config.rconFeatureEnabled = enabled;
+            saveConfig();
+            console.log(`RCON feature ${enabled ? 'enabled' : 'disabled'} by ${interaction.user.tag}`);
+            await interaction.reply({ content: `RCON polling feature has been ${enabled ? 'enabled' : 'disabled'}.`, flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'setinitialdelay') {
@@ -397,7 +419,7 @@ Poll Interval (ms): ${config.pollInterval}`,
         if (interaction.customId === 'confirm_restart') {
             lastRestartTime = Date.now();
             await interaction.update({ content: 'Restarting server...', components: [] });
-            
+
             try {
                 const response = await fetch(config.webhookUrl, {
                     method: 'POST',
@@ -408,12 +430,19 @@ Poll Interval (ms): ${config.pollInterval}`,
                 if (response.ok) {
                     console.log('Server restarted successfully');
                     await interaction.channel.send(
-                        `✅ Server restarted successfully by <@${interaction.user.id}>!\n` +
-                        `Please wait for the server to come back online.\n` +
-                        `This can take up to 5-10 minutes.`
+                        `✅ Server restart initiated successfully!\n`
                     );
-                    // Begin polling the RCON port to check when the server is back online.
-                    pollServer(interaction.user.id, interaction.channel);
+                    // Use the RCON feature flag to decide whether to poll the server
+                    if (config.rconFeatureEnabled) {
+                        await interaction.channel.send(
+                            `<@${interaction.user.id}>, I will message you when it is back online!\n` +
+                            `This can take up to 5-10 minutes.`
+                        );
+                        pollServer(interaction.user.id, interaction.channel);
+                    } else {
+                        interaction.channel.send(`Please wait for the server to come back online.\n` +
+                        `This can take up to 5-10 minutes.`);
+                    }
                 } else {
                     console.error(`Server restart failed with response status ${response.status}`);
                     await interaction.channel.send(
