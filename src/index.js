@@ -469,7 +469,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
 
                 if (response.ok) {
                     console.log('Server restarted successfully');
-                    await interaction.channel.send(`✅ Server restart initiated successfully!\n`);
+                    await interaction.channel.send(`Server restart initiated successfully!\n`);
                     if (config.rconFeatureEnabled) {
                         await interaction.channel.send(`<@${interaction.user.id}>, I will message you when it is back online!\nThis can take up to 5-10 minutes.`);
                         pollServer(interaction.user.id, interaction.channel);
@@ -478,11 +478,11 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                     }
                 } else {
                     console.error(`Server restart failed with response status ${response.status}`);
-                    await interaction.channel.send(`❌ Server restart failed.\nI will notify an admin.\n<@${interaction.user.id}>'s attempt to restart the server failed. Please investigate.`);
+                    await interaction.channel.send(`❌ Server restart failed.\nI will notify an admin.\n<@${interaction.user.id}>'s attempt to restart the server failed.`);
                 }
             } catch (error) {
                 console.error('Error processing restartserver command:', error);
-                await interaction.channel.send(`❌ Server restart failed.\nI will notify an admin.\n<@${interaction.user.id}>'s attempt to restart the server failed. Please investigate.`);
+                await interaction.channel.send(`❌ Server restart failed.\nI will notify an admin.\n<@${interaction.user.id}>'s attempt to restart the server failed.`);
             }
         } else if (interaction.customId === 'cancel_restart') {
             await interaction.update({ content: 'Server restart cancelled.', components: [] });
@@ -508,11 +508,11 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                     }
                 } else {
                     console.error(`Server restart failed with response status ${response.status}`);
-                    await interaction.followUp({ content: '❌ Server restart failed. Please investigate.', flags: MessageFlags.Ephemeral });
+                    await interaction.followUp({ content: '❌ Server restart failed.', flags: MessageFlags.Ephemeral });
                 }
             } catch (error) {
                 console.error('Error processing silentrestart command:', error);
-                await interaction.followUp({ content: '❌ Server restart failed. Please investigate.', flags: MessageFlags.Ephemeral });
+                await interaction.followUp({ content: '❌ Server restart failed.', flags: MessageFlags.Ephemeral });
             }
         } else if (interaction.customId === 'cancel_silentrestart') {
             await interaction.update({ content: 'Silent server restart cancelled.', components: [] });
