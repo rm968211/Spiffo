@@ -15,7 +15,6 @@ const {
     ButtonStyle
 } = require('discord.js');
 
-// Import the new RCON client
 const { RconClient } = require('@0x0c/rcon');
 
 const configPath = process.env.CONFIG_PATH || path.join('/data', 'config.json');
