@@ -15,6 +15,9 @@ const {
     ButtonStyle
 } = require('discord.js');
 
+// Import the new RCON client
+const { RconClient } = require('@0x0c/rcon');
+
 const configPath = process.env.CONFIG_PATH || path.join('/data', 'config.json');
 
 let config = {
@@ -58,6 +61,46 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
     ]
 });
+
+/**
+ * Polls the RCON port by sending the "help" command until a valid response is received.
+ * Uses @0x0c/rcon.
+ */
+async function pollServer(userId, channel) {
+    const initialDelay = 180000; // 3 minutes in milliseconds
+    const maxAttempts = 60; // try for up to 5 minutes (60 attempts * 5 seconds)
+    let attempts = 0;
+    const pollInterval = 5000; // 5 seconds
+    const expectedSubstring = "List of server commands";
+    const rconOptions = {
+        host: process.env.RCON_HOST || '127.0.0.1',
+        port: parseInt(process.env.RCON_PORT) || 25575,
+        password: process.env.RCON_PASSWORD || '',
+        timeout: 5000, // timeout in milliseconds
+    };
+
+    async function poll() {
+        attempts++;
+        const rcon = new RconClient(rconOptions);
+        try {
+            await rcon.connect();
+            const response = await rcon.send("help");
+            await rcon.disconnect();
+            if (response && response.includes(expectedSubstring)) {
+                channel.send(`✅ Server is back online, <@${userId}>!`);
+                return;
+            }
+        } catch (error) {
+            console.log(`Polling attempt ${attempts} failed: ${error}`);
+        }
+        if (attempts < maxAttempts) {
+            setTimeout(poll, pollInterval);
+        } else {
+            channel.send(`⚠️ Server did not respond after multiple attempts, <@${userId}>. Please check manually.`);
+        }
+    }
+    setTimeout(poll, initialDelay);
+}
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -116,17 +159,17 @@ client.once('ready', async () => {
                     .setRequired(true)
             )
             .toJSON(),
-            new SlashCommandBuilder()
-                .setName('setwebhooktoken')
-                .setDescription('Configure the webhook token')
-                .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-                .setContexts(InteractionContextType.Guild)
-                .addStringOption(option =>
-                    option.setName('token')
-                        .setDescription('The new webhook token')
-                        .setRequired(true)
-                )
-                .toJSON(),
+        new SlashCommandBuilder()
+            .setName('setwebhooktoken')
+            .setDescription('Configure the webhook token')
+            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+            .setContexts(InteractionContextType.Guild)
+            .addStringOption(option =>
+                option.setName('token')
+                    .setDescription('The new webhook token')
+                    .setRequired(true)
+            )
+            .toJSON(),
         new SlashCommandBuilder()
             .setName('setrestartfeature')
             .setDescription('Enable or disable the restart server command')
@@ -298,6 +341,8 @@ Restart Feature Enabled: ${config.restartFeatureEnabled}`,
                         `Please wait for the server to come back online.\n` +
                         `This can take up to 5-10 minutes.`
                     );
+                    // Begin polling the RCON port to check when the server is back online.
+                    pollServer(interaction.user.id, interaction.channel);
                 } else {
                     console.error(`Server restart failed with response status ${response.status}`);
                     await interaction.channel.send(
