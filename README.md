@@ -1,4 +1,4 @@
-# Spiffio
+# Spiffo
 
 This Discord bot manages and restarts a Project Zomboid server using slash commands. It lets administrators configure role-based access, rate limits, webhook URLs, and even enable/disable the restart feature.
 
