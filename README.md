@@ -64,15 +64,15 @@ This project includes a Dockerfile that builds an image using an official Node.j
          -e DISCORD_BOT_TOKEN=your_discord_bot_token_here \
          discord-bot
 
-The image is also published on Docker Hub at: **rm968211/spiffio**
+The image is also published on Docker Hub at: **rm968211/spiffo**
 
 ## Docker Compose
 
 You can also run the bot using Docker Compose. Below is an example `docker-compose.yml` file:
 
     services:
-      spiffio:
-        image: rm968211/Spiffio
+      spiffo:
+        image: rm968211/spiffo
         environment:
           - DISCORD_BOT_TOKEN=your_discord_bot_token_here
           - CONFIG_PATH=/data/config.json
