@@ -472,7 +472,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
         }
 
         if (interaction.commandName === 'help') {
-            const helpMessage = "I am spiffo! If the server needs an update or a restart, just use my restartserver command to restart the server!";
+            const helpMessage = "I am Spiffo! If the server needs an update or a restart, just use my restartserver command to restart the server!";
             await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
         }
     }
