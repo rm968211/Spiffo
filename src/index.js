@@ -245,19 +245,12 @@ client.once('ready', async () => {
                     .setRequired(true)
             )
             .toJSON(),
-        // New silentrestart command for admins (all messages are ephemeral)
         new SlashCommandBuilder()
             .setName('silentrestart')
             .setDescription('Silently restart the Project Zomboid server (admins only)')
             .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
             .setContexts(InteractionContextType.Guild)
-            .toJSON(),
-        new SlashCommandBuilder()
-            .setName('players')
-            .setDescription('List current active players on the server')
-            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-            .setContexts(InteractionContextType.Guild)
-            .toJSON(),
+            .toJSON()
     ];
 
     const CLIENT_ID = client.user.id;
@@ -447,28 +440,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                         .setStyle(ButtonStyle.Secondary)
                 );
             await interaction.reply({ content: 'Are you sure you want to silently restart the server?', components: [row], flags: MessageFlags.Ephemeral });
-        }
-
-        if (interaction.commandName === 'players') {
-            console.log(`Players command initiated by ${interaction.user.tag}`);
-            try {
-                const rconOptions = {
-                    host: process.env.RCON_HOST || 'zomboid-server',
-                    port: parseInt(process.env.RCON_PORT) || 27015,
-                    password: process.env.RCON_PASSWORD || '',
-                    timeout: 5000,
-                };
-                const rcon = new RconClient(rconOptions);
-                await rcon.connect();
-                // Execute the "players" command; output will be echoed directly
-                const playersOutput = await rcon.send('players');
-                await rcon.disconnect();
-                console.log(`Players output: ${playersOutput}`);
-                await interaction.reply({ content: `**Players:**\n${playersOutput}`, flags: MessageFlags.Ephemeral });
-            } catch (error) {
-                console.error('Error fetching players:', error);
-                await interaction.reply({ content: '❌ Failed to fetch players.', flags: MessageFlags.Ephemeral });
-            }
         }
 
         if (interaction.commandName === 'help') {
