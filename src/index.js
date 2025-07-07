@@ -245,7 +245,6 @@ client.once('ready', async () => {
                     .setRequired(true)
             )
             .toJSON(),
-        // New silentrestart command for admins (all messages are ephemeral)
         new SlashCommandBuilder()
             .setName('silentrestart')
             .setDescription('Silently restart the Project Zomboid server (admins only)')
@@ -444,7 +443,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
         }
 
         if (interaction.commandName === 'help') {
-            const helpMessage = "I am Spiffio! If the server needs an update or a restart, just use my restartserver command to restart the server!";
+            const helpMessage = "I am Spiffo! If the server needs an update or a restart, just use my restartserver command to restart the server!";
             await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
         }
     }
