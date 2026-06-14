@@ -36,6 +36,8 @@ This Discord bot manages and restarts a Project Zomboid server using slash comma
     RCON_HOST=your_rcon_host_here  # Optional; defaults to 'portainer' if not set
     RCON_PORT=your_rcon_port_here  # Optional; defaults to 27015 if not set
     RCON_PASSWORD=your_rcon_password_here  # Optional; defaults to '' if not set
+    API_KEY=your_internal_api_key_here  # Optional; enables the internal webhook-token API if set
+    API_PORT=8080  # Optional; port for the internal API, defaults to 8080
     ```
 
 3. **Install Dependencies**
@@ -86,6 +88,15 @@ To use Docker Compose:
 2. Run the following command to start the service:
 
        docker-compose up -d
+
+## Internal API
+
+If `API_KEY` is set, Spiffo exposes a small HTTP API (on `API_PORT`, default `8080`) intended for use by CI/automation, equivalent to the `/setwebhooktoken` command:
+
+- **POST /webhook-token**
+  - Header: `X-API-Key: <API_KEY>`
+  - Body: `{ "token": "<portainer-webhook-token>" }`
+  - Sets `webhookUrl` to `http://portainer:9000/api/webhooks/<token>` and persists it to `config.json`.
 
 ## Code Structure
 

@@ -1,4 +1,5 @@
 const fs = require('fs');
+const http = require('http');
 const path = require('path');
 require('dotenv').config();
 const {
@@ -42,6 +43,13 @@ function saveConfig() {
     } catch (error) {
         console.error('Error saving config file:', error);
     }
+}
+
+// Updates the Portainer recreate-container webhook URL from a webhook token and persists it.
+function setWebhookToken(token) {
+    config.webhookUrl = `http://portainer:9000/api/webhooks/${token}`;
+    saveConfig();
+    return config.webhookUrl;
 }
 
 // Load the configuration file if it exists; otherwise, create it.
@@ -326,10 +334,9 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
 
         if (interaction.commandName === 'setwebhooktoken') {
             const token = interaction.options.getString('token');
-            config.webhookUrl = `http://portainer:9000/api/webhooks/${token}`;
-            saveConfig();
+            const webhookUrl = setWebhookToken(token);
             console.log(`Updated webhook token to: ${token}`);
-            await interaction.reply({ content: `Webhook URL updated to: ${config.webhookUrl}`, flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: `Webhook URL updated to: ${webhookUrl}`, flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'setrestartfeature') {
@@ -518,5 +525,49 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
         }
     }
 });
+
+// Internal API allowing CI/automation to update the Portainer webhook token
+// without going through the Discord setwebhooktoken command.
+const API_KEY = process.env.API_KEY;
+const API_PORT = parseInt(process.env.API_PORT) || 8080;
+
+if (API_KEY) {
+    const server = http.createServer((req, res) => {
+        if (req.method === 'POST' && req.url === '/webhook-token') {
+            if (req.headers['x-api-key'] !== API_KEY) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'Unauthorized' }));
+            }
+
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', () => {
+                try {
+                    const { token } = JSON.parse(body);
+                    if (!token) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        return res.end(JSON.stringify({ error: 'Missing token' }));
+                    }
+                    const webhookUrl = setWebhookToken(token);
+                    console.log(`Webhook token updated via API to: ${token}`);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ webhookUrl }));
+                } catch (error) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+                }
+            });
+        } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Not found' }));
+        }
+    });
+
+    server.listen(API_PORT, () => {
+        console.log(`Internal API listening on port ${API_PORT}`);
+    });
+} else {
+    console.warn('API_KEY not set; internal webhook-token API is disabled.');
+}
 
 client.login(process.env.DISCORD_BOT_TOKEN);
