@@ -1,5 +1,4 @@
 const fs = require('fs');
-const http = require('http');
 const path = require('path');
 require('dotenv').config();
 const {
@@ -25,16 +24,13 @@ let config = {
     rconFeatureEnabled: true,
     rateLimit: 12, // in minutes
     restartAccessRoleId: 'disabled',
-    webhookUrl: null,
     initialDelay: 60000, // 1 minute in milliseconds
     maxDuration: 720000,  // 12 minutes in milliseconds
     pollInterval: 15000    // 15 seconds in milliseconds
 };
 
-// Function to persist the config object to the file
 function saveConfig() {
     try {
-        // Ensure the directory exists before saving the file
         const dir = path.dirname(configPath);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
@@ -45,25 +41,27 @@ function saveConfig() {
     }
 }
 
-// Updates the Portainer recreate-container webhook URL from a webhook token and persists it.
-function setWebhookToken(token) {
-    config.webhookUrl = `http://portainer:9000/api/webhooks/${token}`;
-    saveConfig();
-    return config.webhookUrl;
-}
-
-// Load the configuration file if it exists; otherwise, create it.
 if (fs.existsSync(configPath)) {
     try {
         const fileData = fs.readFileSync(configPath);
         const fileConfig = JSON.parse(fileData);
-        // Merge defaults with file values (file values take precedence)
         config = { ...config, ...fileConfig };
     } catch (error) {
         console.error('Error reading config file, using defaults.', error);
     }
 } else {
     saveConfig();
+}
+
+async function restartServer() {
+    const url = `${process.env.PZ_APP_URL}/api/server/restart`;
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': process.env.PZ_API_KEY
+        }
+    });
 }
 
 const client = new Client({
@@ -74,8 +72,8 @@ const client = new Client({
 });
 
 /**
- * Polls the RCON port by sending the "help" command until a valid response is received.
- * If the silent flag is true, it uses the provided interaction object to send ephemeral follow-ups.
+ * Polls the RCON port until a valid response is received or the timeout is reached.
+ * If silent is true, sends ephemeral follow-ups via the provided interaction instead of channel messages.
  */
 async function pollServer(userId, channel, silent = false, interactionForFollowUp = null) {
     const initialDelay = config.initialDelay;
@@ -85,7 +83,7 @@ async function pollServer(userId, channel, silent = false, interactionForFollowU
         host: process.env.RCON_HOST || 'zomboid-server',
         port: parseInt(process.env.RCON_PORT) || 27015,
         password: process.env.RCON_PASSWORD || '',
-        timeout: 5000, // timeout in milliseconds
+        timeout: 5000,
     };
 
     const startTime = Date.now();
@@ -119,7 +117,7 @@ async function pollServer(userId, channel, silent = false, interactionForFollowU
             }
             return;
         } catch (error) {
-            // Do nothing, keep polling
+            // keep polling
         }
         setTimeout(poll, pollInterval);
     }
@@ -129,7 +127,7 @@ async function pollServer(userId, channel, silent = false, interactionForFollowU
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     console.log(`Restart access role ID: ${config.restartAccessRoleId}`);
-    console.log(`Endpoint URL: ${config.webhookUrl}`);
+    console.log(`Manager URL: ${process.env.PZ_APP_URL}`);
     console.log(`Rate limit (minutes): ${config.rateLimit}`);
     console.log(`Restart feature enabled: ${config.restartFeatureEnabled}`);
     console.log(`RCON feature enabled: ${config.rconFeatureEnabled}`);
@@ -175,28 +173,6 @@ client.once('ready', async () => {
             .setName('help')
             .setDescription('Bark! Bark! Bark!')
             .setContexts(InteractionContextType.Guild)
-            .toJSON(),
-        new SlashCommandBuilder()
-            .setName('setwebhookurl')
-            .setDescription('Configure the webhook URL')
-            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-            .setContexts(InteractionContextType.Guild)
-            .addStringOption(option =>
-                option.setName('url')
-                    .setDescription('The new webhook URL')
-                    .setRequired(true)
-            )
-            .toJSON(),
-        new SlashCommandBuilder()
-            .setName('setwebhooktoken')
-            .setDescription('Configure the webhook token')
-            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-            .setContexts(InteractionContextType.Guild)
-            .addStringOption(option =>
-                option.setName('token')
-                    .setDescription('The new webhook token')
-                    .setRequired(true)
-            )
             .toJSON(),
         new SlashCommandBuilder()
             .setName('setrestartfeature')
@@ -305,7 +281,7 @@ client.on('interactionCreate', async interaction => {
             await interaction.reply({
                 content: `Current Configuration:
 Role ID: ${config.restartAccessRoleId}
-Webhook URL: ${config.webhookUrl || 'Not Set'}
+Manager URL: ${process.env.PZ_APP_URL || 'Not Set'}
 Rate Limit (minutes): ${config.rateLimit}
 Restart Feature Enabled: ${config.restartFeatureEnabled}
 RCON Feature Enabled: ${config.rconFeatureEnabled}
@@ -322,21 +298,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
             saveConfig();
             console.log(`Updated rate limit to: ${config.rateLimit} minutes`);
             await interaction.reply({ content: `Rate limit updated to: ${config.rateLimit} minutes`, flags: MessageFlags.Ephemeral });
-        }
-
-        if (interaction.commandName === 'setwebhookurl') {
-            const url = interaction.options.getString('url');
-            config.webhookUrl = url;
-            saveConfig();
-            console.log(`Updated webhook URL to: ${url}`);
-            await interaction.reply({ content: `Webhook URL updated to: ${config.webhookUrl}`, flags: MessageFlags.Ephemeral });
-        }
-
-        if (interaction.commandName === 'setwebhooktoken') {
-            const token = interaction.options.getString('token');
-            const webhookUrl = setWebhookToken(token);
-            console.log(`Updated webhook token to: ${token}`);
-            await interaction.reply({ content: `Webhook URL updated to: ${webhookUrl}`, flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'setrestartfeature') {
@@ -387,7 +348,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
 
             console.log(`Server restart initiated by ${interaction.user.tag}`);
 
-            // Check for role permission if a role is set
             if (config.restartAccessRoleId !== 'disabled') {
                 if (!interaction.member.roles.cache.has(config.restartAccessRoleId)) {
                     console.warn(`User ${interaction.user.tag} does not have required role ${config.restartAccessRoleId} to restart the server.`);
@@ -395,7 +355,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                 }
             }
 
-            // Check rate limit based on the config setting
             const RATE_LIMIT_MS = config.rateLimit * 60 * 1000;
             const currentTime = Date.now();
             if (currentTime - lastRestartTime < RATE_LIMIT_MS) {
@@ -406,7 +365,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                 return interaction.reply({ content: `The server has already been restarted recently. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
             }
 
-            // Send confirmation message with buttons for public restart
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
@@ -424,7 +382,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
 
         if (interaction.commandName === 'silentrestart') {
             console.log(`Silent server restart initiated by ${interaction.user.tag}`);
-            // Check rate limit
             const RATE_LIMIT_MS = config.rateLimit * 60 * 1000;
             const currentTime = Date.now();
             if (currentTime - lastRestartTime < RATE_LIMIT_MS) {
@@ -434,7 +391,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                 console.warn(`The server has already been restarted. Deferring for ${minutesRemaining} minutes and ${secondsRemaining} seconds.`);
                 return interaction.reply({ content: `The server has already been restarted recently. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
             }
-            // Send confirmation message with buttons for silent restart
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
@@ -455,9 +411,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
         }
     }
 
-    // Handle button interactions for confirmation
     if (interaction.isButton()) {
-        // Ensure only the user who initiated the command can use the buttons.
         const originalUserId = interaction.message.interactionMetadata?.user.id;
         if (interaction.user.id !== originalUserId) {
             return interaction.reply({ content: "You can't interact with this confirmation.", flags: MessageFlags.Ephemeral });
@@ -467,14 +421,10 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
             lastRestartTime = Date.now();
             await interaction.update({ content: 'Restarting server...', components: [] });
             try {
-                const response = await fetch(config.webhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
-                });
+                const response = await restartServer();
 
                 if (response.ok) {
-                    console.log('Server restarted successfully');
+                    console.log('Server restart initiated successfully');
                     await interaction.channel.send(`Server restart initiated successfully!\n`);
                     if (config.rconFeatureEnabled) {
                         await interaction.channel.send(`<@${interaction.user.id}>, I will message you when it is back online!\nThis can take up to 5-10 minutes.`);
@@ -496,11 +446,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
             lastRestartTime = Date.now();
             await interaction.update({ content: 'Restarting server silently...', components: [] });
             try {
-                const response = await fetch(config.webhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
-                });
+                const response = await restartServer();
 
                 if (response.ok) {
                     console.log('Server restarted silently successfully');
@@ -525,49 +471,5 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
         }
     }
 });
-
-// Internal API allowing CI/automation to update the Portainer webhook token
-// without going through the Discord setwebhooktoken command.
-const API_KEY = process.env.API_KEY;
-const API_PORT = parseInt(process.env.API_PORT) || 8080;
-
-if (API_KEY) {
-    const server = http.createServer((req, res) => {
-        if (req.method === 'POST' && req.url === '/webhook-token') {
-            if (req.headers['x-api-key'] !== API_KEY) {
-                res.writeHead(401, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ error: 'Unauthorized' }));
-            }
-
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', () => {
-                try {
-                    const { token } = JSON.parse(body);
-                    if (!token) {
-                        res.writeHead(400, { 'Content-Type': 'application/json' });
-                        return res.end(JSON.stringify({ error: 'Missing token' }));
-                    }
-                    const webhookUrl = setWebhookToken(token);
-                    console.log(`Webhook token updated via API to: ${token}`);
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ webhookUrl }));
-                } catch (error) {
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Invalid JSON body' }));
-                }
-            });
-        } else {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Not found' }));
-        }
-    });
-
-    server.listen(API_PORT, () => {
-        console.log(`Internal API listening on port ${API_PORT}`);
-    });
-} else {
-    console.warn('API_KEY not set; internal webhook-token API is disabled.');
-}
 
 client.login(process.env.DISCORD_BOT_TOKEN);
