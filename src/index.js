@@ -74,9 +74,18 @@ const client = new Client({
 
 /**
  * Polls the RCON port until a valid response is received or the timeout is reached.
- * Sends ephemeral follow-ups via the provided interaction.
+ * Sends ephemeral follow-ups via the provided interaction, falling back to a DM
+ * if the interaction token has expired (they only live 15 minutes).
  */
 async function pollServer(interaction) {
+    async function notify(content) {
+        try {
+            await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+        } catch (error) {
+            await interaction.user.send(content).catch(err => console.error('Failed to notify user via followUp or DM:', err));
+        }
+    }
+
     const initialDelay = config.initialDelay;
     const maxDuration = config.maxDuration;
     const pollInterval = config.pollInterval;
@@ -93,10 +102,7 @@ async function pollServer(interaction) {
         const elapsed = Date.now() - startTime;
         if (elapsed >= maxDuration) {
             console.log(`Polling timed out after ${Math.floor(elapsed / 1000)} seconds.`);
-            interaction.followUp({
-                content: `⚠️ Server did not respond within the expected time frame. Please try to connect manually.`,
-                flags: MessageFlags.Ephemeral
-            });
+            await notify(`⚠️ Server did not respond within the expected time frame. Please try to connect manually.`);
             return;
         }
         const rcon = new RconClient(rconOptions);
@@ -104,10 +110,7 @@ async function pollServer(interaction) {
             await rcon.connect();
             await rcon.disconnect();
             console.log(`Server is back online after ${Math.floor(elapsed / 1000)} seconds.`);
-            interaction.followUp({
-                content: `✅ Server is back online!`,
-                flags: MessageFlags.Ephemeral
-            });
+            await notify(`✅ Server is back online!`);
             return;
         } catch (error) {
             // keep polling
