@@ -74,20 +74,13 @@ const client = new Client({
 
 /**
  * Polls the RCON port until a valid response is received or the timeout is reached.
- * Sends ephemeral follow-ups via the provided interaction, falling back to a DM
- * if the interaction token has expired (they only live 15 minutes).
+ * Sends ephemeral follow-ups via the provided interaction.
  */
 async function pollServer(interaction) {
-    async function notify(content) {
-        try {
-            await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
-        } catch (error) {
-            await interaction.user.send(content).catch(err => console.error('Failed to notify user via followUp or DM:', err));
-        }
-    }
-
     const initialDelay = config.initialDelay;
-    const maxDuration = config.maxDuration;
+    // Ephemeral follow-ups ride the interaction token, which expires after 15
+    // minutes — cap polling at 14 so the final notice can still be delivered.
+    const maxDuration = Math.min(config.maxDuration, 840000);
     const pollInterval = config.pollInterval;
     const rconOptions = {
         host: process.env.RCON_HOST || 'zomboid-server',
@@ -102,7 +95,10 @@ async function pollServer(interaction) {
         const elapsed = Date.now() - startTime;
         if (elapsed >= maxDuration) {
             console.log(`Polling timed out after ${Math.floor(elapsed / 1000)} seconds.`);
-            await notify(`⚠️ Server did not respond within the expected time frame. Please try to connect manually.`);
+            await interaction.followUp({
+                content: `⚠️ Server did not respond within the expected time frame. Please try to connect manually.`,
+                flags: MessageFlags.Ephemeral
+            }).catch(err => console.error('Failed to send follow-up:', err));
             return;
         }
         const rcon = new RconClient(rconOptions);
@@ -110,7 +106,10 @@ async function pollServer(interaction) {
             await rcon.connect();
             await rcon.disconnect();
             console.log(`Server is back online after ${Math.floor(elapsed / 1000)} seconds.`);
-            await notify(`✅ Server is back online!`);
+            await interaction.followUp({
+                content: `✅ Server is back online!`,
+                flags: MessageFlags.Ephemeral
+            }).catch(err => console.error('Failed to send follow-up:', err));
             return;
         } catch (error) {
             // keep polling
