@@ -53,14 +53,15 @@ if (fs.existsSync(configPath)) {
     saveConfig();
 }
 
-async function restartServer() {
+async function restartServer(user) {
     const url = `${process.env.PZ_APP_URL}/api/server/restart`;
     return fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-API-Key': process.env.PZ_API_KEY
-        }
+        },
+        body: JSON.stringify({ notes: `Restarted via Discord by ${user.tag} (${user.id})` })
     });
 }
 
@@ -73,11 +74,13 @@ const client = new Client({
 
 /**
  * Polls the RCON port until a valid response is received or the timeout is reached.
- * If silent is true, sends ephemeral follow-ups via the provided interaction instead of channel messages.
+ * Sends ephemeral follow-ups via the provided interaction.
  */
-async function pollServer(userId, channel, silent = false, interactionForFollowUp = null) {
+async function pollServer(interaction) {
     const initialDelay = config.initialDelay;
-    const maxDuration = config.maxDuration;
+    // Ephemeral follow-ups ride the interaction token, which expires after 15
+    // minutes — cap polling at 14 so the final notice can still be delivered.
+    const maxDuration = Math.min(config.maxDuration, 840000);
     const pollInterval = config.pollInterval;
     const rconOptions = {
         host: process.env.RCON_HOST || 'zomboid-server',
@@ -92,14 +95,10 @@ async function pollServer(userId, channel, silent = false, interactionForFollowU
         const elapsed = Date.now() - startTime;
         if (elapsed >= maxDuration) {
             console.log(`Polling timed out after ${Math.floor(elapsed / 1000)} seconds.`);
-            if (silent && interactionForFollowUp) {
-                interactionForFollowUp.followUp({
-                    content: `⚠️ Server did not respond within the expected time frame. Please try to connect manually.`,
-                    ephemeral: true
-                });
-            } else {
-                channel.send(`⚠️ Server did not respond within the expected time frame, <@${userId}>. Please try to connect manually.`);
-            }
+            await interaction.followUp({
+                content: `⚠️ Server did not respond within the expected time frame. Please try to connect manually.`,
+                flags: MessageFlags.Ephemeral
+            }).catch(err => console.error('Failed to send follow-up:', err));
             return;
         }
         const rcon = new RconClient(rconOptions);
@@ -107,14 +106,10 @@ async function pollServer(userId, channel, silent = false, interactionForFollowU
             await rcon.connect();
             await rcon.disconnect();
             console.log(`Server is back online after ${Math.floor(elapsed / 1000)} seconds.`);
-            if (silent && interactionForFollowUp) {
-                interactionForFollowUp.followUp({
-                    content: `✅ Server is back online!`,
-                    ephemeral: true
-                });
-            } else {
-                channel.send(`✅ Server is back online, <@${userId}>!`);
-            }
+            await interaction.followUp({
+                content: `✅ Server is back online!`,
+                flags: MessageFlags.Ephemeral
+            }).catch(err => console.error('Failed to send follow-up:', err));
             return;
         } catch (error) {
             // keep polling
@@ -228,12 +223,6 @@ client.once('ready', async () => {
                     .setDescription('Poll interval in seconds')
                     .setRequired(true)
             )
-            .toJSON(),
-        new SlashCommandBuilder()
-            .setName('silentrestart')
-            .setDescription('Silently restart the Project Zomboid server (admins only)')
-            .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-            .setContexts(InteractionContextType.Guild)
             .toJSON()
     ];
 
@@ -380,31 +369,6 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
             await interaction.reply({ content: 'Are you sure you want to restart the server?', components: [row], flags: MessageFlags.Ephemeral });
         }
 
-        if (interaction.commandName === 'silentrestart') {
-            console.log(`Silent server restart initiated by ${interaction.user.tag}`);
-            const RATE_LIMIT_MS = config.rateLimit * 60 * 1000;
-            const currentTime = Date.now();
-            if (currentTime - lastRestartTime < RATE_LIMIT_MS) {
-                const remainingTime = RATE_LIMIT_MS - (currentTime - lastRestartTime);
-                const minutesRemaining = Math.floor(remainingTime / 60000);
-                const secondsRemaining = Math.floor((remainingTime % 60000) / 1000);
-                console.warn(`The server has already been restarted. Deferring for ${minutesRemaining} minutes and ${secondsRemaining} seconds.`);
-                return interaction.reply({ content: `The server has already been restarted recently. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
-            }
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('confirm_silentrestart')
-                        .setLabel('Confirm')
-                        .setStyle(ButtonStyle.Danger),
-                    new ButtonBuilder()
-                        .setCustomId('cancel_silentrestart')
-                        .setLabel('Cancel')
-                        .setStyle(ButtonStyle.Secondary)
-                );
-            await interaction.reply({ content: 'Are you sure you want to silently restart the server?', components: [row], flags: MessageFlags.Ephemeral });
-        }
-
         if (interaction.commandName === 'help') {
             const helpMessage = "I am Spiffo! If the server needs an update or a restart, just use my restartserver command to restart the server!";
             await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
@@ -421,53 +385,33 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
             lastRestartTime = Date.now();
             await interaction.update({ content: 'Restarting server...', components: [] });
             try {
-                const response = await restartServer();
+                const response = await restartServer(interaction.user);
 
                 if (response.ok) {
                     console.log('Server restart initiated successfully');
-                    await interaction.channel.send(`Server restart initiated successfully!\n`);
-                    if (config.rconFeatureEnabled) {
-                        await interaction.channel.send(`<@${interaction.user.id}>, I will message you when it is back online!\nThis can take up to 5-10 minutes.`);
-                        pollServer(interaction.user.id, interaction.channel);
-                    } else {
-                        interaction.channel.send(`Please wait for the server to come back online.\nThis can take up to 5-10 minutes.`);
-                    }
-                } else {
-                    console.error(`Server restart failed with response status ${response.status}`);
-                    await interaction.channel.send(`❌ Server restart failed.\nI will notify an admin.\n<@${interaction.user.id}>'s attempt to restart the server failed.`);
-                }
-            } catch (error) {
-                console.error('Error processing restartserver command:', error);
-                await interaction.channel.send(`❌ Server restart failed.\nI will notify an admin.\n<@${interaction.user.id}>'s attempt to restart the server failed.`);
-            }
-        } else if (interaction.customId === 'cancel_restart') {
-            await interaction.update({ content: 'Server restart cancelled.', components: [] });
-        } else if (interaction.customId === 'confirm_silentrestart') {
-            lastRestartTime = Date.now();
-            await interaction.update({ content: 'Restarting server silently...', components: [] });
-            try {
-                const response = await restartServer();
-
-                if (response.ok) {
-                    console.log('Server restarted silently successfully');
                     await interaction.followUp({ content: '✅ Server restart initiated successfully!', flags: MessageFlags.Ephemeral });
                     if (config.rconFeatureEnabled) {
                         await interaction.followUp({
                             content: `I will notify you when the server is back online. This can take up to 5-10 minutes.`,
                             flags: MessageFlags.Ephemeral
                         });
-                        pollServer(interaction.user.id, interaction.channel, true, interaction);
+                        pollServer(interaction);
+                    } else {
+                        await interaction.followUp({
+                            content: `Please wait for the server to come back online.\nThis can take up to 5-10 minutes.`,
+                            flags: MessageFlags.Ephemeral
+                        });
                     }
                 } else {
                     console.error(`Server restart failed with response status ${response.status}`);
                     await interaction.followUp({ content: '❌ Server restart failed.', flags: MessageFlags.Ephemeral });
                 }
             } catch (error) {
-                console.error('Error processing silentrestart command:', error);
+                console.error('Error processing restartserver command:', error);
                 await interaction.followUp({ content: '❌ Server restart failed.', flags: MessageFlags.Ephemeral });
             }
-        } else if (interaction.customId === 'cancel_silentrestart') {
-            await interaction.update({ content: 'Silent server restart cancelled.', components: [] });
+        } else if (interaction.customId === 'cancel_restart') {
+            await interaction.update({ content: 'Server restart cancelled.', components: [] });
         }
     }
 });

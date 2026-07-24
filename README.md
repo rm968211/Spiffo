@@ -17,7 +17,6 @@ This Discord bot manages and restarts a Project Zomboid server using slash comma
 - **/setinitialdelay:** Set the initial delay for polling the server (in seconds).
 - **/setmaxduration:** Set the maximum duration for polling the server (in seconds).
 - **/setpollinterval:** Set the polling interval (in seconds).
-- **/silentrestart:** Silently restart the Project Zomboid server (admins only).
 
 ## Setup
 
