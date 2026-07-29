@@ -165,7 +165,7 @@ client.once('ready', async () => {
             .toJSON(),
         new SlashCommandBuilder()
             .setName('restartserver')
-            .setDescription('Update and restart the Project Zomboid server')
+            .setDescription('Restart the Project Zomboid server')
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
         new SlashCommandBuilder()
@@ -370,7 +370,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                         .setStyle(ButtonStyle.Secondary)
                 );
 
-            await interaction.reply({ content: 'Are you sure you want to update and restart the server?', components: [row], flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: 'Are you sure you want to restart the server?', components: [row], flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'help') {
@@ -387,7 +387,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
 
         if (interaction.customId === 'confirm_restart') {
             lastRestartTime = Date.now();
-            await interaction.update({ content: 'Updating and restarting server...', components: [] });
+            await interaction.update({ content: 'Restarting server...', components: [] });
             try {
                 const response = await restartServer(interaction.user);
 
