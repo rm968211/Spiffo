@@ -61,7 +61,11 @@ async function restartServer(user) {
             'Content-Type': 'application/json',
             'X-API-Key': process.env.PZ_API_KEY
         },
-        body: JSON.stringify({ notes: `Restarted via Discord by ${user.tag} (${user.id})` })
+        body: JSON.stringify({
+            // Always update the game files as part of a restart.
+            update: true,
+            notes: `Restarted via Discord by ${user.tag} (${user.id})`
+        })
     });
 }
 
