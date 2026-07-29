@@ -54,7 +54,7 @@ if (fs.existsSync(configPath)) {
 }
 
 async function restartServer(user) {
-    const url = `${process.env.PZ_APP_URL}/api/server/restart`;
+    const url = `${process.env.PZ_APP_URL}/api/server/update`;
     return fetch(url, {
         method: 'POST',
         headers: {
