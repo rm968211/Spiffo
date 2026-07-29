@@ -53,7 +53,7 @@ if (fs.existsSync(configPath)) {
     saveConfig();
 }
 
-async function restartServer(user) {
+async function restartServer(user, update = false) {
     const url = `${process.env.PZ_APP_URL}/api/server/restart`;
     return fetch(url, {
         method: 'POST',
@@ -61,7 +61,10 @@ async function restartServer(user) {
             'Content-Type': 'application/json',
             'X-API-Key': process.env.PZ_API_KEY
         },
-        body: JSON.stringify({ notes: `Restarted via Discord by ${user.tag} (${user.id})` })
+        body: JSON.stringify({
+            update,
+            notes: `Restarted via Discord by ${user.tag} (${user.id})`
+        })
     });
 }
 
@@ -162,6 +165,11 @@ client.once('ready', async () => {
         new SlashCommandBuilder()
             .setName('restartserver')
             .setDescription('Restart the Project Zomboid server')
+            .addBooleanOption(option =>
+                option.setName('update')
+                    .setDescription('Also update the game files via SteamCMD before starting')
+                    .setRequired(false)
+            )
             .setContexts(InteractionContextType.Guild)
             .toJSON(),
         new SlashCommandBuilder()
@@ -354,10 +362,12 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                 return interaction.reply({ content: `The server has already been restarted recently. Please wait ${minutesRemaining} minutes and ${secondsRemaining} seconds before trying again!`, flags: MessageFlags.Ephemeral });
             }
 
+            // Carry the update flag through the confirm button's custom ID.
+            const withUpdate = interaction.options.getBoolean('update') ?? false;
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId('confirm_restart')
+                        .setCustomId(withUpdate ? 'confirm_restart:update' : 'confirm_restart')
                         .setLabel('Confirm')
                         .setStyle(ButtonStyle.Danger),
                     new ButtonBuilder()
@@ -366,7 +376,10 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
                         .setStyle(ButtonStyle.Secondary)
                 );
 
-            await interaction.reply({ content: 'Are you sure you want to restart the server?', components: [row], flags: MessageFlags.Ephemeral });
+            const prompt = withUpdate
+                ? 'Are you sure you want to update the game files and restart the server?'
+                : 'Are you sure you want to restart the server?';
+            await interaction.reply({ content: prompt, components: [row], flags: MessageFlags.Ephemeral });
         }
 
         if (interaction.commandName === 'help') {
@@ -381,11 +394,15 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
             return interaction.reply({ content: "You can't interact with this confirmation.", flags: MessageFlags.Ephemeral });
         }
 
-        if (interaction.customId === 'confirm_restart') {
+        if (interaction.customId === 'confirm_restart' || interaction.customId === 'confirm_restart:update') {
+            const withUpdate = interaction.customId === 'confirm_restart:update';
             lastRestartTime = Date.now();
-            await interaction.update({ content: 'Restarting server...', components: [] });
+            await interaction.update({
+                content: withUpdate ? 'Updating and restarting server...' : 'Restarting server...',
+                components: []
+            });
             try {
-                const response = await restartServer(interaction.user);
+                const response = await restartServer(interaction.user, withUpdate);
 
                 if (response.ok) {
                     console.log('Server restart initiated successfully');
