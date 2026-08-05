@@ -11,6 +11,7 @@ This Discord bot manages and restarts a Project Zomboid server using slash comma
 - **/setrestartfeature:** Enable or disable the restart command.
 - **/restartserver:** Initiate a server restart (requires confirmation via buttons).
 - **/help:** Display a help message with a brief bot description.
+- **@Spiffo:** Mentioning the bot in a channel replies with the help message.
 - **/setwebhookurl:** Configure the webhook URL.
 - **/setwebhooktoken:** Configure the webhook token.
 - **/setrconfeature:** Enable or disable the RCON polling feature.
