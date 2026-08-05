@@ -17,6 +17,8 @@ const {
 
 const { RconClient } = require('@0x0c/rcon');
 
+const HELP_MESSAGE = "I am Spiffo! If the server needs an update or a restart, just use my restartserver command to restart the server!";
+
 const configPath = process.env.CONFIG_PATH || path.join('/data', 'config.json');
 
 let config = {
@@ -69,6 +71,7 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
     ]
 });
 
@@ -370,8 +373,7 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
         }
 
         if (interaction.commandName === 'help') {
-            const helpMessage = "I am Spiffo! If the server needs an update or a restart, just use my restartserver command to restart the server!";
-            await interaction.reply({ content: helpMessage, flags: MessageFlags.Ephemeral });
+            await interaction.reply({ content: HELP_MESSAGE, flags: MessageFlags.Ephemeral });
         }
     }
 
@@ -414,6 +416,13 @@ Poll Interval (seconds): ${config.pollInterval / 1000}`,
             await interaction.update({ content: 'Server restart cancelled.', components: [] });
         }
     }
+});
+
+client.on('messageCreate', async message => {
+    // users.has, not mentions.has — the latter also matches @everyone and role pings.
+    if (message.author.bot || !message.mentions.users.has(client.user.id)) return;
+    console.log(`Mentioned by ${message.author.tag} in #${message.channel.name}`);
+    await message.reply(HELP_MESSAGE).catch(err => console.error('Failed to reply to mention:', err));
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN);
